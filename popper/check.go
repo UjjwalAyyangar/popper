@@ -14,6 +14,7 @@ import (
 var environment []string
 var volume []string
 var skip string
+var custom string
 var timeout string
 
 func runOnHost(checkFlags []string) {
@@ -78,8 +79,12 @@ func runCheck() {
 	// add timeout
 	checkFlags := []string{"--timeout=" + timeout}
 
-	// add skipped stages
-	if len(skip) > 0 {
+	if len(custom) > 0 {
+		checkFlags = append(checkFlags, "--custom="+custom)
+	}
+
+	// add skipped stages if no custom stages defined
+	if len(skip) > 0 && len(custom) <= 0 {
 		checkFlags = append(checkFlags, "--skip="+skip)
 	}
 
@@ -134,6 +139,7 @@ func init() {
 	checkCmd.Flags().StringSliceVarP(&volume, "volume", "v", []string{}, `Volume available to the pipeline. Can be given multiple times
                             This flag is ignored when the environment is 'host'.`)
 	checkCmd.Flags().StringVarP(&skip, "skip", "s", "", "Comma-separated list of stages to skip.")
+	checkCmd.Flags().StringVarP(&custom, "custom", "c", "", "Comma-separated list of custom stages to run in lieu of default stages.")
 	checkCmd.Flags().StringVarP(&timeout, "timeout", "t", "36000", "Timeout limit for pipeline in seconds.")
 	runCmd.Flags().StringSliceVarP(&environment, "environment", "e", []string{}, `Environment variable available to the pipeline. Can be
                      given multiple times. This flag is ignored when the environment
@@ -141,5 +147,6 @@ func init() {
 	runCmd.Flags().StringSliceVarP(&volume, "volume", "v", []string{}, `Volume available to the pipeline. Can be given multiple times
                      This flag is ignored when the environment is 'host'.`)
 	runCmd.Flags().StringVarP(&skip, "skip", "s", "", "Comma-separated list of stages to skip.")
+	runCmd.Flags().StringVarP(&custom, "custom", "c", "", "Comma-separated list of custom stages to run in lieu of default stages.")
 	runCmd.Flags().StringVarP(&timeout, "timeout", "t", "36000", "Timeout limit for pipeline in seconds.")
 }

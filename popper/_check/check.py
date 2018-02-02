@@ -39,14 +39,21 @@ def execute(stage, timeout):
 
     return p.poll()
 
+def check_custom(skip, custom, timeout):
+    if custom is not None:
+        customStages = custom.split(',')
+        check_pipeline(skip, customStages, customStages, int(args.timeout))
+    else:
+        check_pipeline(skip, custom, stages, int(args.timeout))
 
-def check_pipeline(skip, timeout, exit_on_fail=True, show_logs_on_fail=True):
+
+def check_pipeline(skip, custom, stagesToRun, timeout, exit_onf_fail=True, show_logs_on_fail=True):
     check_output('rm -rf popper_logs/ popper_status', shell=True)
     check_output('mkdir -p popper_logs/', shell=True)
 
     STATUS = "SUCCESS"
 
-    for stage in stages:
+    for stage in stagesToRun:
 
         if not path.isfile(stage):
             continue
@@ -102,6 +109,7 @@ if __name__ == "__main__":
     parser.add_argument('--timeout', default=10800, help='Timeout in seconds.')
     parser.add_argument('--skip', default=None, required=False,
                         help='Comma-separated list of stages to skip.')
+    parser.add_argument('--custom', default=None, required=False, help='Comma-separated list of custom stages to run in lieu of default')                    
     args = parser.parse_args()
     sys.stdout = Unbuffered(sys.stdout)
 
@@ -110,7 +118,7 @@ if __name__ == "__main__":
             if not f.startswith('.') and path.isdir('pipelines/' + f):
                 print('\nChecking pipeline ' + f)
                 os.chdir('pipelines/' + f)
-                check_pipeline(args.skip, int(args.timeout))
+                check_custom(args.skip, args.custom, int(args.timeout))
                 os.chdir('../../')
     else:
-        check_pipeline(args.skip, int(args.timeout))
+        check_custom(args.skip, args.custom, int(args.timeout))

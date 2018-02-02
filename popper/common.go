@@ -8,9 +8,9 @@ import (
 	"path"
 	"strings"
 
+	"github.com/casimir/xdg-go"
 	sh "github.com/codeskyblue/go-sh"
 	"github.com/theherk/viper"
-	"github.com/casimir/xdg-go"
 )
 
 var popperFolder = xdg.CacheHome() + "/popper"
