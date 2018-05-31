@@ -4,10 +4,35 @@ import click
 import os
 import popper.utils as pu
 import sys
-
 from popper.cli import pass_context
 from lark import Lark, InlineTransformer, Tree
 
+def increment(node_id):
+    return 's{}'.format(int(node_id[1:])+1)
+
+def create_if_node(node_id, c, prev_node):
+    print('{} [shape=oval, label="{}"];'.format(node_id,c))
+    print('{} -> {};'.format(prev_node, node_id))
+    node_id = increment(node_id)
+    return [True, node_id]
+
+def remove_redundant_if(cs):
+    for i,item in enumerate(cs):
+        if item == '[wf]#if#':
+            if cs[i+1] =='[wf]#fi#':
+                cs[i] = ''
+                cs[i+1] = ''
+            elif (cs[i+1] == '[wf]#elif#' or cs[i+1] == '[wf]#else#') and cs[i+2] == '[wf]#fi#':
+                cs[i] = ''
+                cs[i+1]= ''
+                cs[i+2] = ''
+
+    new_cs= []
+    for item in cs:
+        if item!='':
+            new_cs.append(item)
+
+    return new_cs
 
 bash_grammar = r"""
 start: expr*
@@ -145,72 +170,84 @@ def cli(ctx, pipeline):
             s = f.read()
             parser.parse(s)
 
-    print('digraph pipeline {')
-
+    #print('digraph pipeline {')
     cs = transformer.comment_stack
-    node_id = 0
-    next_c = ''
+    cs = remove_redundant_if(cs)
+    print(cs)
+    print('digraph pipeline {')
+    curr_node = None
     prev_node = None
-    curr_stage = None
-    prev_stage = None
-    curr_if_stmt_node_id = None
+    node_id = 's{}'.format(0)
+    curr_if_node = None
+    if_created = False
+    if_index = None
+    for i,item in enumerate(cs):
+        if item == '[wf]#stage#':
+            prev_item = cs[i-1]
+            next_item = cs[i+1]
+            label = '"{' + '{} | {}'.format(next_item,prev_item) + '}"'
+            curr_node = next_item[:-3].replace('-','_')
 
-    while len(cs) > 0:
-        c = cs.pop(0)
-
-        # get next item on the stack, if there's still one
-        if len(cs) > 0:
-            next_c = cs.pop(0)
-        else:
-            next_c = None
-
-        # check if we're processing the first element of a stage
-        if next_c and next_c == '[wf]#stage#':
-            # create stage parent node
-
-            curr_stage = cs.pop(0).replace('-', '').replace('_', '')
-
-            print('s{} [{}"{}{}|{}{}"];'.format(
-                curr_stage,
-                'shape=record,style=filled,label=',
-                '{', curr_stage, c, '}')
-            )
-
-            # add edge from previous stage
-            if prev_stage:
-                print('s{} -> s{};'.format(prev_stage, curr_stage))
-
-            prev_stage = curr_stage
-            prev_node = curr_stage
+            #create the stage
+            print('{} [{}]'.format(
+                curr_node,
+                'shape=record, label='+label
+                ))
+            
+            if prev_node:
+                print('{} -> {};'.format(prev_node, curr_node))
+            
+            prev_node = curr_node
             continue
+        
+        #create condition node
+        elif item == '[wf]#if#':
+            if_created = False
+            c = 'condition'
+            if i>1 and (not cs[i-1].startswith('[wf]#') and '.sh' not in cs[i-1]):
+               c += ' : {}'.format(cs[i-1])
+            
+            if_index = i-1
+            curr_if_node = node_id
+        
+        #inside ifs
+        elif item == '[wf]#else#' or item == '[wf]#elif#' or item =='[wf]#fi#' :
+            if not cs[i-1].startswith('[wf]#'):
+                if not if_created:
+                    if_created, node_id = create_if_node(node_id, c, prev_node)
 
-        # add prefix to label based on who's next
-        if str(next_c) == '[wf]#if#':
-            c = 'condition: ' + c
-            curr_if_stmt_node_id = node_id
-        elif str(next_c) == '[wf]#loop#':
-            c = 'loop: ' + c
+                
+                print('{} [shape=record, label="{}"];'.format(node_id,cs[i-1]))
+                print('{} -> {};'.format(curr_if_node, node_id))
+                node_id = increment(node_id)
 
-        # create node
-        print('s{} [shape=record,label="{}"];'.format(node_id, c))
+            if item =='[wf]#fi#' and not if_created:
+                #print("cs",cs[if_index])
+                if not cs[if_index].startswith('[wf]#') and '.sh' not in cs[if_index]:
+                    print('{} [shape=record, label="{}"];'.format(node_id,cs[if_index]))
+                    print('{} -> {};'.format(prev_node, node_id))
+                    node_id = increment(node_id)
+    
+        #inside loop
+        elif item == '[wf]#done':
+            c = 'loop'
+            if not cs[i-1].startswith('[wf]#') and '.sh' not in cs[i-1]:
+                c+= ' : {}'.format(cs[i-1])
+            
+            print('{} [shape=record,label="{}"];'.format(node_id,c))
+            print('{} -> {};'.format(prev_node, node_id))
+            node_id = increment(node_id)
 
-        # add edge from previous node
-        print('s{} -> s{};'.format(prev_node, node_id))
-
-        if len(cs) == 0:
-            # if queue is empty, we're done
-            break
-
-        # if inside an if stmt, previous node changes to if/elif/else node
-        if next_c == '[wf]#elif#' or next_c == '[wf]#else#':
-            prev_node = curr_if_stmt_node_id
-        else:
-            prev_node = node_id
-
-        if not next_c.startswith('[wf]#'):
-            # put it back because next one it's a regular comment
-            cs.insert(0, next_c)
-
-        node_id += 1
+        elif not item.startswith('[wf]#') and '.sh' not in item:
+            if i == len(cs)-1:
+                print('{} [shape=record,label="{}"];'.format(node_id, item))
+                print('{} -> {};'.format(prev_node, node_id))
+                node_id = increment(node_id)
+            elif not cs[i+1].startswith('[wf]#'):
+                print('{} [shape=record,label="{}"];'.format(node_id, item))
+                print('{} -> {};'.format(prev_node, node_id))
+                node_id = increment(node_id)
 
     print('}')
+
+        

@@ -21,7 +21,8 @@ setup(
         'click',
         'requests',
         'lark-parser',
-        'pyyaml'
+        'pyyaml',
+        'cryptography',
     ],
     entry_points='''
         [console_scripts]
