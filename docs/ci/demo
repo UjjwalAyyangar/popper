@@ -255,11 +255,8 @@ popper search linux --skip-update
 test $? - eq 0
 set -e
 
-# TODO
-
-#popper ci jenkins
-#test -f Jenkinsfile
-
+init_test
+popper init pipeone
 popper workflow pipeone > wf.dot
 cat wf.dot | grep digraph
 cat wf.dot | grep ssetup
