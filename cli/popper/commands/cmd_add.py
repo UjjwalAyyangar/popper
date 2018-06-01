@@ -6,6 +6,7 @@ import requests
 import popper.utils as pu
 import yaml
 import zipfile
+from zipfile import BadZipfile
 from io import BytesIO
 from popper.cli import pass_context
 
@@ -50,10 +51,10 @@ def cli(ctx, pipeline):
     r = requests.get(download_url)
     if r.status_code == 200:
         try:
-            z = zipfile.ZipFile(BytesIO(r.content))
-            z.extractall()
-        except BadZipFile as e:
-            z.close()
+            with zipfile.ZipFile(BytesIO(r.content)) as z:
+                z.extractall()
+        except BadZipfile:
+            pu.fail("Please check your connection and try again")
     else:
         pu.fail("Unable to fetch the pipeline. Please check if the name" +
                 " of the pipeline is correct and the internet is connected")
