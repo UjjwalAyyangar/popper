@@ -7,15 +7,21 @@ import sys
 from popper.cli import pass_context
 from lark import Lark, InlineTransformer, Tree
 
+# This function increments the node_ids for the workflow graph
 def increment(node_id):
     return 's{}'.format(int(node_id[1:])+1)
 
+# This function creates an if-node in the workflow graph
 def create_if_node(node_id, c, prev_node):
     print('{} [shape=oval, label="{}"];'.format(node_id,c))
     print('{} -> {};'.format(prev_node, node_id))
     node_id = increment(node_id)
     return [True, node_id]
 
+
+""" This function removes the redundant if-else statements 
+from the comment stack.
+"""
 def remove_redundant_if(cs):
     for i,item in enumerate(cs):
         if item == '[wf]#if#':
@@ -173,7 +179,7 @@ def cli(ctx, pipeline):
     #print('digraph pipeline {')
     cs = transformer.comment_stack
     cs = remove_redundant_if(cs)
-    print(cs)
+    #print(cs)
     print('digraph pipeline {')
     curr_node = None
     prev_node = None
@@ -188,7 +194,7 @@ def cli(ctx, pipeline):
             label = '"{' + '{} | {}'.format(next_item,prev_item) + '}"'
             curr_node = next_item[:-3].replace('-','_')
 
-            #create the stage
+            #create the stage node
             print('{} [{}]'.format(
                 curr_node,
                 'shape=record, label='+label
@@ -200,7 +206,7 @@ def cli(ctx, pipeline):
             prev_node = curr_node
             continue
         
-        #create condition node
+        #initialize the if-node
         elif item == '[wf]#if#':
             if_created = False
             c = 'condition'
@@ -210,7 +216,7 @@ def cli(ctx, pipeline):
             if_index = i-1
             curr_if_node = node_id
         
-        #inside ifs
+        #inside if-elif-else construct
         elif item == '[wf]#else#' or item == '[wf]#elif#' or item =='[wf]#fi#' :
             if not cs[i-1].startswith('[wf]#'):
                 if not if_created:
@@ -238,6 +244,7 @@ def cli(ctx, pipeline):
             print('{} -> {};'.format(prev_node, node_id))
             node_id = increment(node_id)
 
+        # is a comment outside any control structures
         elif not item.startswith('[wf]#') and '.sh' not in item:
             if i == len(cs)-1:
                 print('{} [shape=record,label="{}"];'.format(node_id, item))

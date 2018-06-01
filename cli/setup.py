@@ -22,7 +22,6 @@ setup(
         'requests',
         'lark-parser',
         'pyyaml',
-        'cryptography',
     ],
     entry_points='''
         [console_scripts]
